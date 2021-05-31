@@ -108,3 +108,95 @@ RPL(Request privilege level)请求特权级，选择子中的最低两位。
 ## day3
 
 elf文件格式，bootloader在第一扇区，而os的elf文件在第二扇区，bios需要加载elf到内存中，这个过程是根据elf文件头的格式来进行的。bios会将elf中的代码段依次加载到内存中，然后执行elf的entry。
+
+**elf文件格式**
+
+关于elf链接的一些知识，可以参考这个文档  https://docs.oracle.com/cd/E19683-01/816-1386/index.html
+
+三种类型:可执行文件(类似exe文件)，可重定位文件(还不太懂)，共享目标文件(一些动态链接库，linux下.so文件，windows下.dll文件)
+
+下面是可执行elf文件的文件头
+
+```c
+/* file header */
+struct elfhdr {
+    uint32_t e_magic;     // must equal ELF_MAGIC
+    uint8_t e_elf[12];
+    uint16_t e_type;      // 1=relocatable, 2=executable, 3=shared object, 4=core image
+    uint16_t e_machine;   // 3=x86, 4=68K, etc.  
+    uint32_t e_version;   // file version, always 1
+    uint32_t e_entry;     // entry point if executable
+    uint32_t e_phoff;     // file position of program header or 0 程序头表的偏移
+    uint32_t e_shoff;     // file position of section header or 0 表偏移
+    uint32_t e_flags;     // architecture-specific flags, usually 0
+    uint16_t e_ehsize;    // size of this elf header
+    uint16_t e_phentsize; // size of an entry in program header
+    uint16_t e_phnum;     // number of entries in program header or 0 程序头表中的项数
+    uint16_t e_shentsize; // size of an entry in section header
+    uint16_t e_shnum;     // number of entries in section header or 0 表中项数
+    uint16_t e_shstrndx;  // section number that contains section name strings 字符section的表号
+};
+```
+
+可以看到elf中有两个表一个是program header table一个是section header table，首先看一下program header是干嘛的。
+
+> program header描述与程序执行直接相关的目标文件结构信息，用来在文件中定位各个段的映像，同时包含其他一些用来为程序创建进程映像所必需的信息。
+
+结构如下
+
+```
+/* program section header */
+struct proghdr {
+    uint32_t p_type;   // loadable code or data, dynamic linking info,etc.
+    uint32_t p_offset; // file offset of segment
+    uint32_t p_va;     // virtual address to map segment
+    uint32_t p_pa;     // physical address, not used
+    uint32_t p_filesz; // size of segment in file
+    uint32_t p_memsz;  // size of segment in memory (bigger if contains bss）
+    uint32_t p_flags;  // read/write/execute bits
+    uint32_t p_align;  // required alignment, invariably hardware page size
+};
+```
+
+实际的elf结构图
+
+![elf](img/day3-1.gif)
+
+可以看到program header 是紧跟在elf header后面的一串结构体数组。
+
+对于可执行文件好像有没有section header 无所谓，但是对于可重定位文件必须有section header。section header包含了用于定位和isolate文件中每个section的信息。
+
+```c
+ typedef struct {
+               uint32_t   sh_name;// name of section 
+               uint32_t   sh_type;// 类型
+               uint32_t   sh_flags;//section 的一些属性 
+               Elf32_Addr sh_addr; // 内存中的地址
+               Elf32_Off  sh_offset; //距离文件头(file offset)起始的偏移量
+               uint32_t   sh_size;// 大小
+               uint32_t   sh_link;//section header table index link 根据不同的section type 有不同的含义
+               uint32_t   sh_info;// 额外的一些信息
+               uint32_t   sh_addralign;// 对齐限制
+               uint32_t   sh_entsize;// entry size
+           } Elf32_Shdr;
+```
+
+更详细的信息查阅 https://docs.oracle.com/cd/E19455-01/806-3773/elf-2/index.html
+
+**中断**
+
+中断向量表(Interrupt Vector Table简称IVT),在实模式下使用，用于存放256个中断对应的中断处理程序的地址，IVT通常位于`0000:0000H`的位置大小为`0x400`每个中断向量为`0x4`字节。
+
+中断描述符(Interrupt Description Table简称IDT),IA-32体系架构使用。实模式中断向量表的保护模式副本，用于保存中断服务例程(Interrupt Service Routines 即ISR)所在的位置。类似于全局描述符表。
+
+中断的分类:
+
+- 硬件中断(hardware interrupt)
+	- 可屏蔽中断(maskable interrupt)，可以通过中断屏蔽寄存器配置。
+	- 非可屏蔽中断(non-maskeable interrupt简称nmi)，常见的有时钟中断
+	- 处理器间中断(interprocessor interrupt)，一个处理器发出，另一个处理器接收，用于多处理器系统。
+	- 伪中断(spurious interrupt),电气信号异常等不希望被产生的硬件中断，通常是设备的问题.
+- 软件中断(software interrupt) 通过CPU指令将用于态切换到内核态，通常用于实现系统调用。
+
+## day4
+
