@@ -1,14 +1,14 @@
 # ucore learning
 
-> 实验环境: Manjaro Linux 21.0.5
+> 实验环境: Manjaro Linux 21.0.5 + ubuntu 18.04
 >
 > 编译器:clang 11.1.0
 >
 > 硬件模拟器:qemu
 >
-> 文档:https://objectkuan.gitbooks.io/
+> 文档:https://objectkuan.gitbooks.io/ucore-docs/content/
 >
-> 答案:https://oscourse-tsinghua.github.io/
+> 答案:https://oscourse-tsinghua.github.io/ucore-analysis/
 
 ## day1
 
@@ -207,4 +207,10 @@ manjaro下用clang编译出来的kernel有点问题，使用gdb调试的时候�
 用户态和内核态的切换其实过程很相似，不过有些许的不同。首先都是通过int发起中断(不过由内核态到用户态需要保存ss和esp寄存器，切换到用户栈??),然后根据中断号找到对应的中断处理程序(会将中断号压栈然后统一由trapentry保存现场)，然后根据保存的trapframe进行相应的中断处理，切换用户态和内核态只需要改变trapframe中的cs,ds,eflag等寄存器信息即可。
 
 > 在内核态引发的中断会将SS与ESP寄存器的值保存到TSS(Task State Segment)中，而用户态的SS与ESP寄存器的值则会正常保存到栈中
+
+## day5
+
+[lab1总结与梳理](lab1/summary.md)
+
+
 
