@@ -212,5 +212,39 @@ manjaro下用clang编译出来的kernel有点问题，使用gdb调试的时候�
 
 [lab1总结与梳理](lab1/summary.md)
 
+## day6
 
+**物理内存管理**
 
+在bootloader中添加了一段代码探测可用的物理内存，kernel的入口点改为了`kern_entry`.
+
+探测物理内存，通过bios中断来实现，并将物理内存的信息保存在0x8000的位置，使用结构体`e820map`保存。具体细节参考[物理内存探测](https://objectkuan.gitbooks.io/ucore-docs/content/lab2/lab2_3_6_implement_probe_phymem.html)
+
+**物理页**
+
+使用页的数据结构管理内存(每个页大小为4KB),结构如下
+
+```c
+struct Page {
+    int ref;        // page frame's reference counter 和虚拟页表的映射
+    uint32_t flags; // array of flags that describe the status of the page frame
+    unsigned int property;// the num of free block, used in first fit pm manager 不同的分配算法有不同的含义
+    list_entry_t page_link;// free list link 链接连续空闲块(注意这里是块，不是空闲页，空闲块指的是一连串空闲物理页构成的集合)
+};
+```
+
+使用`free_area_t`管理连续空闲块
+
+```c
+/* free_area_t - maintains a doubly linked list to record free (unused) pages */
+typedef struct {
+            list_entry_t free_list;                                // the list header
+            unsigned int nr_free;                                 // # of free pages in this free list
+} free_area_t;
+```
+
+物理内存布局
+
+![memout.png](img/day6-1.png)
+
+为什么是这样的布局还是挺重要的,页管理的地址紧跟在kernel的后面.
