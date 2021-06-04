@@ -248,3 +248,39 @@ typedef struct {
 ![memout.png](img/day6-1.png)
 
 为什么是这样的布局还是挺重要的,页管理的地址紧跟在kernel的后面.
+
+## day7
+
+阅读源码，各种宏。lab1的加载启动过程比较简单，lab2的更接近实际的启动过程，涉及到了页表相关的东西。
+
+[linux内核启动加载分析](http://flyflypeng.github.io/%E5%86%85%E6%A0%B8/2017/06/27/Linux-%E5%86%85%E6%A0%B8%E5%8A%A0%E8%BD%BD%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E5%88%86%E6%9E%90.html)
+
+重温存储管理机制
+
+**段式管理**
+
+CPU根据逻辑地址的段选择子，找到对应的段描述符索引，根据段描述符中的基址和逻辑偏移计算得到线性地址(Linear Address)，单纯的段式管理中的线性地址和物理地址相同。
+
+**段页式管理**
+
+在段页式管理中，得到的线性地址不是物理地址，而是虚拟地址，还需要将线性地址转换为物理地址，转换的过程需要查询页表，ucore采用二级页表，即`page directory table`和`page entry table`.
+
+在lab1中bootasm.s将gdt中的数据和代码描述符的基址均设为了0,那么通过cs和eip计算对应的线性地址时，就是实际的物理地址。
+
+而在lab2中进入`kern_init`前首先进行了`kern_entry`，在entry.S中,设置了段的基址为`-KERNBASE`，这样子就有`linear address = vitrual address - kernbase`,那么线性地址就和物理地址相同了。为什么和物理地址相同呢？ld链接脚本中的虚拟地址不是变成0xC0100000了吗？
+
+```assembly
+__gdt:
+    SEG_NULL
+    SEG_ASM(STA_X | STA_R, - KERNBASE, 0xFFFFFFFF)      # code segment
+    SEG_ASM(STA_W, - KERNBASE, 0xFFFFFFFF)              # data segment
+```
+
+其实在bootmain读取磁盘中的kernel时，将虚拟地址&ffffff那么0xC0100000就变成了0x100000，所以kernel会被加载到物理地址0x100000处，达到和lab1一样的效果。
+
+```c
+for (; ph < eph; ph ++) {
+    readseg(ph->p_va & 0xFFFFFF, ph->p_memsz, ph->p_offset);
+}
+```
+
