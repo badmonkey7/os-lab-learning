@@ -284,3 +284,69 @@ for (; ph < eph; ph ++) {
 }
 ```
 
+逻辑地址到物理地址的转换
+
+分段式:逻辑地址 => 分段式地址转换=> 线性地址 == 物理地址
+
+段页式:逻辑地址=> 分段式地址转换=> 线性地址=> 分页式地址转换=>物理地址
+
+总之，线性地址是个中间地址，可以将逻辑地址视为虚拟地址，段页式管理(二级页表)示意图如下
+
+![display.png](img/day7-1.png)
+
+
+
+lab2是在bootloader建立好**段式管理的基础上实现页管理机制**的。 
+
+## day8
+
+entry.S构建好新的段映射后，进入kern_init而kern_init中会调用pmm_init初始化物理内存管理。pmm_init首先调用init_pmm_manager(其实是设置manager为defalut_manager然后调用其init方法清空双向链表和空闲页的计数)，然后调用page_init建立页表。
+
+在page_init中首先根据观测到的物理地址，计算出最高的物理地址maxpa，然后0-maxpa范围内的地址将会被页表进行管理，进而得到所需要的页表数。
+
+```c
+    for (i = 0; i < memmap->nr_map; i ++) {
+        uint64_t begin = memmap->map[i].addr, end = begin + memmap->map[i].size;
+        cprintf("  memory: %08llx, [%08llx, %08llx], type = %d.\n",
+                memmap->map[i].size, begin, end - 1, memmap->map[i].type);
+        if (memmap->map[i].type == E820_ARM) {
+            if (maxpa < end && begin < KMEMSIZE) {
+                maxpa = end; // 遍历得到最高的物理地址
+            }
+        }
+    }
+    if (maxpa > KMEMSIZE) {
+        maxpa = KMEMSIZE;
+    }
+    extern char end[];
+    npage = maxpa / PGSIZE; // 页表数
+```
+
+而管理页表的位置则放在end向上4k字节对齐处
+
+```c
+pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);
+```
+
+同时将end段和页表段的页表信息设置为reserved即无法被分配的物理内存
+
+```c
+for (i = 0; i < npage; i ++) {
+    SetPageReserved(pages + i);
+}
+```
+
+同时计算出空闲的物理地址的最低地址(页表管理模块紧挨着的地址)
+
+```c
+uintptr_t freemem = PADDR((uintptr_t)pages + sizeof(struct Page) * npage);
+```
+
+然后再次遍历探测的物理内存块，根据起始和结束的物理地址，计算出对应的page基地址和页数，调用init_memmap映射
+
+```c
+if (begin < end) {
+    init_memmap(pa2page(begin), (end - begin) / PGSIZE);
+}
+```
+
