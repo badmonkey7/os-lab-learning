@@ -350,3 +350,18 @@ if (begin < end) {
 }
 ```
 
+**调试黑洞**
+
+由于lab2建立页映射之前，将段式映射修改了，不再是对等映射。
+
+## day9
+
+答案有点错误，free页的时候应该是
+
+```c
+list_add_before(&free_list, &(base->page_link));
+```
+
+这样子allocate的时候使用next遍历才是正确顺序。
+
+啃源码ing...
