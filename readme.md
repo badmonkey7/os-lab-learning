@@ -365,3 +365,23 @@ list_add_before(&free_list, &(base->page_link));
 这样子allocate的时候使用next遍历才是正确顺序。
 
 啃源码ing...
+
+## day10
+
+咕咕咕，看了几天zircon感觉有点头秃，很多都看不懂,于是回来看ucore。
+
+物理内存管理是通过pmm_manager管理的，实现了基本的物理页分配和释放操作，物理页分配采用的是first fit算法。page->property 对应一个free block中物理页的数量。对应的实现在`default_pmm_manager`中。pmm_init中依次执行了
+
+```c
+init_pmm_manager
+page_init
+check_alloc_page
+check_pgdir
+boot_map_segment
+enable_paging
+check_boot_pgdir
+```
+
+init_pmm_manager 首先将pmm_manager替换成default_pmm_manager,然后调用其init方法将双向链表清空(类似于libc中的bin)。然后调用page_init，根据物理内存的信息设置页表起始地址，并将所有页表打上标记。然后遍历物理内存，将有效的内存加入到关于页表的双向链表中。然后检查了一下算法是否正确。同时为pgdir(page directory table)分配了一个物理页，然后检查页表的查找删除算法是否正确。主要函数`get_pte`根据逻辑地址在一级页表pdt中寻找页表项(pte)，可以根据是否缺失pte分配对应的物理页，并更新pte的值和控制权。删除pte时，首先要减少ref然后判断ref是否为0,为0则需要free掉pte的物理页。不管是否为0都需要清楚其在tlb中的信息。页表插入时，首先需要判断待插入出是否和被插入的pte相同，相同则更新齐权限，不同则删除原来的pte,并更新pte为新插入的值，同时清除tlb中的对应的信息。
+
+然后建立虚拟地址和物理内存的映射，不过需要建立一个临时的映射，然后开启paging(否则会跑飞),更改gdt的映射关系，最后删除临时映射。
